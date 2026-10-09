@@ -19,6 +19,10 @@ class BuildFilter(unittest.TestCase):
         self.assertTrue(f.startswith("loudnorm="))
         self.assertNotIn("volume=", f)
 
+    def test_normalize_resamples_back_to_48k(self):
+        f = b.build_filter(Namespace(dialogue=False, normalize=True, db=0.0))
+        self.assertLess(f.index("loudnorm"), f.index("aresample=48000"))
+
     def test_normalize_with_extra_gain_comes_after_loudnorm(self):
         f = b.build_filter(Namespace(dialogue=False, normalize=True, db=3.0))
         self.assertLess(f.index("loudnorm"), f.index("volume=3.0dB"))

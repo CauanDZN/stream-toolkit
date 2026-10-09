@@ -2,6 +2,13 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
+## [1.0.1] - 2026-10-09
+
+### Corrigido
+- `boost_audio.py --normalize`: o `loudnorm` deixava o áudio em 96/192 kHz; agora volta para 48 kHz.
+- `boost_audio.py`: faixas com mais de 2 canais (5.1) usam AAC 384 kbps por padrão (antes 192 kbps).
+- `boost_audio.py --help` não quebra mais em consoles cp1252 do Windows.
+
 ## [1.0.0] - 2026-10-09
 
 Primeira versão pública.

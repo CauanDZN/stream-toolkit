@@ -75,6 +75,7 @@ def build_filter(args):
         parts.append("acompressor=threshold=-24dB:ratio=3:attack=20:release=250:makeup=2")
     if args.normalize:
         parts.append("loudnorm=I=-16:TP=-1.5:LRA=11")
+        parts.append("aresample=48000")   # o loudnorm sobe o áudio para 96/192 kHz; volta ao padrão de vídeo
         if args.db:
             parts.append(f"volume={args.db}dB")
     else:
@@ -91,7 +92,7 @@ def main():
     ap.add_argument("--normalize", action="store_true", help="nivela o volume (loudnorm -16 LUFS); com --db, soma depois")
     ap.add_argument("--dialogue", action="store_true", help="comprime picos para realçar falas")
     ap.add_argument("--track", type=int, metavar="N", help="só a faixa de áudio N (1, 2...); as demais passam sem mudar")
-    ap.add_argument("--bitrate", default="192k", help="bitrate do áudio recodificado (padrão 192k)")
+    ap.add_argument("--bitrate", default=None, help="bitrate do áudio recodificado (padrão: 192k estéreo, 384k para 5.1)")
     ap.add_argument("--analyze", action="store_true", help="só mede o volume atual e sugere ganho")
     ap.add_argument("-y", "--yes", action="store_true", help="sobrescreve a saída sem perguntar")
     args = ap.parse_args()
@@ -141,7 +142,8 @@ def main():
     cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-nostats", "-progress", "pipe:1", "-y", "-i", args.input,
            "-map", "0", "-c", "copy", "-map_metadata", "0"]
     for n in tracks:
-        cmd += [f"-filter:a:{n}", flt, f"-c:a:{n}", "aac", f"-b:a:{n}", args.bitrate]
+        bitrate = args.bitrate or ("384k" if (audio[n].get("channels") or 2) > 2 else "192k")
+        cmd += [f"-filter:a:{n}", flt, f"-c:a:{n}", "aac", f"-b:a:{n}", bitrate]
     cmd.append(out)
     print(f"\nFiltro: {flt}")
     print(f"Gerando {out} ...")

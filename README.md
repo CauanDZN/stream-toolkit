@@ -137,7 +137,7 @@ python watch_m3u8.py URL --download filme.mkv --audio all --subs none --quality 
 
 ## boost_audio.py
 
-Sobe o volume de um vídeo copiando imagem e legendas (rápido) e recodificando **só o áudio** (AAC 192 kbps). Um limitador evita distorção nos picos.
+Sobe o volume de um vídeo copiando imagem e legendas (rápido) e recodificando **só o áudio** (AAC: 192 kbps em estéreo, 384 kbps em 5.1). Um limitador evita distorção nos picos.
 
 ```bash
 python boost_audio.py filme.mp4 --analyze            # mede o volume atual e sugere quantos dB subir
@@ -149,7 +149,7 @@ python boost_audio.py filme.mp4 --track 1            # só a 1ª faixa de áudio
 python boost_audio.py filme.mp4 -o saida.mp4
 ```
 
-A saída vai ao lado do original (`<nome>_vol+6dB.mp4`, ou `<nome>_norm.mp4` com `--normalize`); o arquivo original nunca é alterado. Outras opções: `--bitrate 256k`, `-y` (sobrescrever sem perguntar).
+A saída vai ao lado do original (`<nome>_vol+6dB.mp4`, ou `<nome>_norm.mp4` com `--normalize`); o arquivo original nunca é alterado. Outras opções: `--bitrate 256k` (força o bitrate), `-y` (sobrescrever sem perguntar).
 
 **Qual modo usar?** Rode `--analyze` primeiro. Se o pico já está em ~0 dB, subir o volume "puro" só achata as cenas altas: prefira `--normalize` ou `--dialogue`.
 
