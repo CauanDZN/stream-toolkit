@@ -1,0 +1,19 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Saídas geradas pelas ferramentas
+*.mp4
+*.mkv
+*.ts
+*.srt
+*.vtt
+frame_*.png
+
+# Editor / SO
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
