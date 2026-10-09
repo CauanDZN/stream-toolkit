@@ -92,6 +92,10 @@ def build_filter(args):
     return ",".join(parts)
 
 
+MP4_EXTS = (".mp4", ".m4v", ".mov")
+TEXT_SUB_CODECS = {"subrip", "ass", "ssa", "mov_text", "webvtt", "text"}
+
+
 def text_subs(path):
     """Índices (entre as legendas) das legendas de texto, as únicas que cabem em MP4."""
     r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "s", "-show_entries", "stream=codec_name",
@@ -122,6 +126,8 @@ def run_ffmpeg(cmd, dur):
             elif line:
                 errors.append(line)
         rc = proc.wait()
+        proc.stdout.close()
+        proc.stdin.close()
     except KeyboardInterrupt:
         print("\nInterrompido; finalizando o arquivo parcial...")
         try:

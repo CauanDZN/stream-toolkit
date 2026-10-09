@@ -1,6 +1,11 @@
 """Testes das funções puras de boost_audio.py (sem ffmpeg)."""
+import contextlib
+import io
 import os
+import shutil
+import subprocess
 import sys
+import tempfile
 import unittest
 from argparse import Namespace
 
@@ -50,6 +55,52 @@ class Formatting(unittest.TestCase):
     def test_label(self):
         s = {"codec_name": "aac", "channels": 6, "tags": {"language": "por", "title": "Dublado"}}
         self.assertEqual(b.label(0, s), "#1  por   aac 6ch  Dublado")
+
+
+@unittest.skipUnless(shutil.which("ffmpeg") and shutil.which("ffprobe"), "precisa de ffmpeg")
+class EndToEnd(unittest.TestCase):
+    """Roda o script de verdade num MKV pequeno com 2 áudios e legenda SRT (o caso que já quebrou)."""
+
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.dir, True)
+        srt = os.path.join(self.dir, "s.srt")
+        with open(srt, "w", encoding="utf-8") as f:
+            f.write(chr(10).join(["1", "00:00:01,000 --> 00:00:02,000", "Oi", ""]))
+        self.src = os.path.join(self.dir, "in.mkv")
+        subprocess.run(
+            ["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=d=20:s=160x120:r=10",
+             "-f", "lavfi", "-i", "sine=f=440:d=20", "-f", "lavfi", "-i", "sine=f=660:d=20", "-i", srt,
+             "-map", "0", "-map", "1", "-map", "2", "-map", "3", "-c:v", "libx264", "-c:a", "aac", "-c:s", "srt", self.src],
+            check=True)
+
+    def run_main(self, *extra):
+        out = os.path.join(self.dir, "out" + (".mp4" if "--mp4" in extra else ".mkv"))
+        argv = ["boost_audio.py", self.src, "-o", out, "-y", *extra]
+        old = sys.argv
+        sys.argv = argv
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                rc = b.main()
+        finally:
+            sys.argv = old
+        return rc, out
+
+    def streams(self, path):
+        r = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=codec_type,codec_name", "-of", "csv=p=0", path],
+                           capture_output=True, text=True)
+        return r.stdout.split()
+
+    def test_mkv_keeps_all_streams_and_audio_is_complete(self):
+        rc, out = self.run_main("--db", "6")
+        self.assertEqual(rc, 0)
+        self.assertEqual(self.streams(out), ["h264,video", "aac,audio", "aac,audio", "subrip,subtitle"])
+        self.assertEqual(b.check_audio(out, [0, 1], 20.0), [])
+
+    def test_tv_to_mp4_converts_subs_and_single_track(self):
+        rc, out = self.run_main("--tv", "--mp4", "--track", "1")
+        self.assertEqual(rc, 0)
+        self.assertEqual(self.streams(out), ["h264,video", "aac,audio", "aac,audio", "mov_text,subtitle"])
 
 
 if __name__ == "__main__":
