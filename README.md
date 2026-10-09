@@ -145,11 +145,16 @@ python boost_audio.py filme.mp4                      # +6 dB (≈ 2x a amplitude
 python boost_audio.py filme.mp4 --db 9               # mais alto
 python boost_audio.py filme.mp4 --normalize          # nivela para volume de streaming (-16 LUFS)
 python boost_audio.py filme.mp4 --dialogue --db 4    # comprime explosões e realça as falas
+python boost_audio.py filme.mkv --tv --mp4           # "som de TV": falas altas, ação controlada, e já converte para MP4
 python boost_audio.py filme.mp4 --track 1            # só a 1ª faixa de áudio (as outras passam sem mudar)
 python boost_audio.py filme.mp4 -o saida.mp4
 ```
 
 A saída vai ao lado do original (`<nome>_vol+6dB.mp4`, ou `<nome>_norm.mp4` com `--normalize`); o arquivo original nunca é alterado. Outras opções: `--bitrate 256k` (força o bitrate), `-y` (sobrescrever sem perguntar).
+
+**`--tv` (recomendado para filmes):** comprime a faixa dinâmica antes de normalizar, como a TV faz. Medido em um filme de ação, a faixa dinâmica (LRA) caiu de 14–19 LU para ~6–7 LU, com volume médio de -16 LUFS: as falas ficam bem mais altas e as explosões não ficam desproporcionais.
+
+**`--mp4`:** gera MP4 na mesma passada (o vídeo h264 só é copiado, então não há retrabalho). Legendas de texto (SRT/ASS) viram `mov_text`; legendas em imagem (PGS) e anexos do MKV não cabem em MP4 e são descartados.
 
 **Qual modo usar?** Rode `--analyze` primeiro. Se o pico já está em ~0 dB, subir o volume "puro" só achata as cenas altas: prefira `--normalize` ou `--dialogue`.
 

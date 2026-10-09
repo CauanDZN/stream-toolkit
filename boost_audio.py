@@ -70,18 +70,34 @@ def analyze(path, track, dur):
 
 def build_filter(args):
     parts = []
-    if args.dialogue:
-        # comprime os picos (efeitos altos) e depois sobe: as falas ficam mais audíveis sem estourar
-        parts.append("acompressor=threshold=-24dB:ratio=3:attack=20:release=250:makeup=2")
-    if args.normalize:
-        parts.append("loudnorm=I=-16:TP=-1.5:LRA=11")
-        parts.append("aresample=48000")   # o loudnorm sobe o áudio para 96/192 kHz; volta ao padrão de vídeo
+    if getattr(args, "tv", False):
+        # "som de TV": comprime a dinâmica (falas sobem, explosões não) e depois nivela para -16 LUFS com LRA baixo
+        parts.append("acompressor=threshold=-36dB:ratio=3:attack=20:release=300:makeup=1")
+        parts.append("loudnorm=I=-16:TP=-1.5:LRA=7")
+        parts.append("aresample=48000")
         if args.db:
             parts.append(f"volume={args.db}dB")
     else:
-        parts.append(f"volume={args.db}dB")
+        if args.dialogue:
+            # comprime os picos (efeitos altos) e depois sobe: as falas ficam mais audíveis sem estourar
+            parts.append("acompressor=threshold=-24dB:ratio=3:attack=20:release=250:makeup=2")
+        if args.normalize:
+            parts.append("loudnorm=I=-16:TP=-1.5:LRA=11")
+            parts.append("aresample=48000")   # o loudnorm sobe o áudio para 96/192 kHz; volta ao padrão de vídeo
+            if args.db:
+                parts.append(f"volume={args.db}dB")
+        else:
+            parts.append(f"volume={args.db}dB")
     parts.append("alimiter=limit=0.97:level=disabled")   # segura picos acima de 0 dBFS (evita distorção)
     return ",".join(parts)
+
+
+def text_subs(path):
+    """Índices (entre as legendas) das legendas de texto, as únicas que cabem em MP4."""
+    r = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "s", "-show_entries", "stream=codec_name",
+                        "-of", "csv=p=0", path], capture_output=True, text=True, errors="replace")
+    names = [l.strip().strip(",") for l in r.stdout.splitlines() if l.strip()]
+    return [i for i, n in enumerate(names) if n in TEXT_SUB_CODECS]
 
 
 def run_ffmpeg(cmd, dur):
@@ -154,9 +170,11 @@ def main():
     ap.add_argument("-o", "--output", help="arquivo de saída (padrão: <nome>_vol+6dB.mp4 ao lado do original)")
     ap.add_argument("--db", type=float, default=None, help="quanto subir, em dB (padrão 6; +6 dB = ~2x; +10 dB = ~3x)")
     ap.add_argument("--normalize", action="store_true", help="nivela o volume (loudnorm -16 LUFS); com --db, soma depois")
+    ap.add_argument("--tv", action="store_true", help="som de TV: comprime a dinâmica (falas altas, ação controlada) e nivela em -16 LUFS; recomendado para filmes")
     ap.add_argument("--dialogue", action="store_true", help="comprime picos para realçar falas")
     ap.add_argument("--track", type=int, metavar="N", help="só a faixa de áudio N (1, 2...); as demais passam sem mudar")
     ap.add_argument("--bitrate", default=None, help="bitrate do áudio recodificado (padrão: 192k estéreo, 384k para 5.1)")
+    ap.add_argument("--mp4", action="store_true", help="gera MP4 (legendas de texto viram mov_text; legendas em imagem e anexos são descartados)")
     ap.add_argument("--analyze", action="store_true", help="só mede o volume atual e sugere ganho")
     ap.add_argument("-y", "--yes", action="store_true", help="sobrescreve a saída sem perguntar")
     args = ap.parse_args()
@@ -188,13 +206,15 @@ def main():
             print(f"Sugestão: --db {min(round(want), int(-peak), 12)}   ou  --normalize para nivelar automaticamente.")
         return 0
 
+    if args.tv:
+        args.normalize = True
     if args.db is None:
         args.db = 0.0 if args.normalize else 6.0
     if not args.normalize and args.db <= 0:
         sys.exit("Use --db com um valor positivo (ex.: --db 6) ou --normalize.")
 
-    ext = os.path.splitext(args.input)[1] or ".mp4"
-    tag = "norm" if args.normalize else f"vol+{args.db:g}dB"
+    ext = ".mp4" if args.mp4 else (os.path.splitext(args.input)[1] or ".mp4")
+    tag = "tv" if args.tv else "norm" if args.normalize else f"vol+{args.db:g}dB"
     out = args.output or os.path.splitext(args.input)[0] + f"_{tag}{ext}"
     if os.path.abspath(out) == os.path.abspath(args.input):
         sys.exit("A saída não pode ser o mesmo arquivo da entrada.")
@@ -216,7 +236,14 @@ def main():
            "-map", "0:v?"]
     for i in range(len(audio)):
         mux += ["-map", f"1:a:{tracks.index(i)}" if i in tracks else f"0:a:{i}"]
-    mux += ["-map", "0:s?", "-map", "0:t?", "-map", "0:d?", "-c", "copy", "-map_metadata", "0", "-map_chapters", "0", out]
+    if os.path.splitext(out)[1].lower() in MP4_EXTS:
+        # MP4 não aceita SRT/ASS cru, PGS, fontes anexadas nem faixas de dados: mantém só legendas de texto, como mov_text
+        for i in text_subs(args.input):
+            mux += ["-map", f"0:s:{i}"]
+        mux += ["-c", "copy", "-c:s", "mov_text", "-movflags", "+faststart"]
+    else:
+        mux += ["-map", "0:s?", "-map", "0:t?", "-map", "0:d?", "-c", "copy"]
+    mux += ["-map_metadata", "0", "-map_chapters", "0", out]
 
     print(f"\nFiltro: {flt}")
     try:

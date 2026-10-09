@@ -2,6 +2,12 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
+## [1.1.0] - 2026-10-09
+
+### Adicionado
+- `boost_audio.py --tv`: preset de "som de TV" (compressão de dinâmica + `loudnorm` com LRA baixo) para deixar falas altas e cenas de ação controladas.
+- `boost_audio.py --mp4`: gera MP4 na mesma passada; legendas de texto viram `mov_text`.
+
 ## [1.0.2] - 2026-10-09
 
 ### Corrigido

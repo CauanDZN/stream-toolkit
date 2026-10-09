@@ -33,6 +33,15 @@ class BuildFilter(unittest.TestCase):
         self.assertTrue(f.endswith("alimiter=limit=0.97:level=disabled"))
 
 
+class TvPreset(unittest.TestCase):
+    def test_tv_compresses_then_normalizes_with_low_lra(self):
+        f = b.build_filter(Namespace(dialogue=False, normalize=True, db=0.0, tv=True))
+        self.assertLess(f.index("acompressor"), f.index("loudnorm"))
+        self.assertIn("LRA=7", f)
+        self.assertLess(f.index("loudnorm"), f.index("aresample=48000"))
+        self.assertTrue(f.endswith("alimiter=limit=0.97:level=disabled"))
+
+
 class Formatting(unittest.TestCase):
     def test_fmt(self):
         self.assertEqual(b.fmt(3723), "01:02:03")
