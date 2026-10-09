@@ -2,6 +2,12 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
+## [1.0.2] - 2026-10-09
+
+### Corrigido
+- `boost_audio.py`: em MKVs com legendas (ex.: SRT), o ffmpeg cortava em silêncio o áudio recodificado após ~3 s (a faixa ficava muda). A geração agora é em duas etapas (áudio recodificado à parte, depois remux copiando o resto).
+- `boost_audio.py`: passou a verificar se o áudio recodificado chega até o fim e avisa com erro caso contrário, em vez de reportar sucesso.
+
 ## [1.0.1] - 2026-10-09
 
 ### Corrigido

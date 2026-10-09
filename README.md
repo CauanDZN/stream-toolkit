@@ -137,7 +137,7 @@ python watch_m3u8.py URL --download filme.mkv --audio all --subs none --quality 
 
 ## boost_audio.py
 
-Sobe o volume de um vídeo copiando imagem e legendas (rápido) e recodificando **só o áudio** (AAC: 192 kbps em estéreo, 384 kbps em 5.1). Um limitador evita distorção nos picos.
+Sobe o volume de um vídeo copiando imagem e legendas (rápido), em duas etapas (áudio recodificado à parte e remux final, com verificação de que o áudio chegou até o fim) e recodificando **só o áudio** (AAC: 192 kbps em estéreo, 384 kbps em 5.1). Um limitador evita distorção nos picos.
 
 ```bash
 python boost_audio.py filme.mp4 --analyze            # mede o volume atual e sugere quantos dB subir
