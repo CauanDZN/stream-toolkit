@@ -102,6 +102,18 @@ class EndToEnd(unittest.TestCase):
         self.assertEqual(rc, 0)
         self.assertEqual(self.streams(out), ["h264,video", "aac,audio", "aac,audio", "mov_text,subtitle"])
 
+    def test_web_makes_single_stereo_track_without_embedded_subs(self):
+        rc, out = self.run_main("--tv", "--web", "--track", "2")
+        self.assertEqual(rc, 0)
+        self.assertEqual(self.streams(out), ["h264,video", "aac,audio"])
+        self.assertTrue(os.path.exists(os.path.splitext(out)[0] + ".sub1.srt"))
+
+
+class DownmixFilter(unittest.TestCase):
+    def test_downmix_goes_first(self):
+        f = b.build_filter(Namespace(dialogue=False, normalize=True, db=0.0, tv=True, downmix=b.DOWNMIX_51))
+        self.assertTrue(f.startswith("pan=stereo|"))
+
 
 if __name__ == "__main__":
     unittest.main()

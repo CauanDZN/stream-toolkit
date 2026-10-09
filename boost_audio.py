@@ -68,8 +68,14 @@ def analyze(path, track, dur):
     return float(mean.group(1)), float(peak.group(1))
 
 
+# 5.1 -> estéreo com o canto central (falas) mais forte; as posições c0..c5 valem para 5.1 e 5.1(side)
+DOWNMIX_51 = "pan=stereo|FL=c0+0.9*c2+0.5*c4|FR=c1+0.9*c2+0.5*c5"
+
+
 def build_filter(args):
     parts = []
+    if getattr(args, "downmix", None):
+        parts.append(args.downmix)
     if getattr(args, "tv", False):
         # "som de TV": comprime a dinâmica (falas sobem, explosões não) e depois nivela para -16 LUFS com LRA baixo
         parts.append("acompressor=threshold=-36dB:ratio=3:attack=20:release=300:makeup=1")
@@ -102,6 +108,14 @@ def text_subs(path):
                         "-of", "csv=p=0", path], capture_output=True, text=True, errors="replace")
     names = [l.strip().strip(",") for l in r.stdout.splitlines() if l.strip()]
     return [i for i, n in enumerate(names) if n in TEXT_SUB_CODECS]
+
+
+def export_subs(path, base):
+    """Salva as legendas de texto ao lado do vídeo (<base>.sub1.srt, ...), já que o MP4 web não leva legendas."""
+    for n, i in enumerate(text_subs(path), 1):
+        name = f"{base}.sub{n}.srt"
+        r = subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", path, "-map", f"0:s:{i}", name], capture_output=True, text=True, errors="replace")
+        print(f"Legenda salva: {name}" if r.returncode == 0 else f"Não consegui extrair a legenda #{n}.")
 
 
 def run_ffmpeg(cmd, dur):
@@ -180,6 +194,7 @@ def main():
     ap.add_argument("--dialogue", action="store_true", help="comprime picos para realçar falas")
     ap.add_argument("--track", type=int, metavar="N", help="só a faixa de áudio N (1, 2...); as demais passam sem mudar")
     ap.add_argument("--bitrate", default=None, help="bitrate do áudio recodificado (padrão: 192k estéreo, 384k para 5.1)")
+    ap.add_argument("--web", action="store_true", help="MP4 para navegador/Drive/Rave: 1 faixa de áudio em estéreo, sem legendas embutidas (vão para .srt), faststart")
     ap.add_argument("--mp4", action="store_true", help="gera MP4 (legendas de texto viram mov_text; legendas em imagem e anexos são descartados)")
     ap.add_argument("--analyze", action="store_true", help="só mede o volume atual e sugere ganho")
     ap.add_argument("-y", "--yes", action="store_true", help="sobrescreve a saída sem perguntar")
@@ -197,7 +212,14 @@ def main():
         print("  " + label(i, s))
     if args.track is not None and not 1 <= args.track <= len(audio):
         sys.exit(f"--track deve estar entre 1 e {len(audio)}.")
+    if args.web:
+        args.mp4 = True
+        args.track = args.track or 1   # navegadores só lidam bem com uma faixa de áudio
     tracks = [args.track - 1] if args.track else list(range(len(audio)))
+    args.downmix = None
+    if args.web:
+        ch = audio[tracks[0]].get("channels") or 2
+        args.downmix = DOWNMIX_51 if ch == 6 else ("aformat=channel_layouts=stereo" if ch > 2 else None)
 
     if args.analyze:
         mean, peak = analyze(args.input, tracks[0], dur)
@@ -235,21 +257,25 @@ def main():
     tmp = os.path.splitext(out)[0] + ".audio-tmp.mka"
     enc = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-nostats", "-progress", "pipe:1", "-y", "-i", args.input]
     for k, n in enumerate(tracks):
-        bitrate = args.bitrate or ("384k" if (audio[n].get("channels") or 2) > 2 else "192k")
+        bitrate = args.bitrate or ("384k" if (audio[n].get("channels") or 2) > 2 and not args.downmix else "192k")
         enc += ["-map", f"0:a:{n}", f"-filter:a:{k}", flt, f"-c:a:{k}", "aac", f"-b:a:{k}", bitrate]
     enc += ["-map_metadata", "0", tmp]
     mux = ["ffmpeg", "-hide_banner", "-loglevel", "error", "-nostats", "-progress", "pipe:1", "-y", "-i", args.input, "-i", tmp,
-           "-map", "0:v?"]
-    for i in range(len(audio)):
-        mux += ["-map", f"1:a:{tracks.index(i)}" if i in tracks else f"0:a:{i}"]
-    if os.path.splitext(out)[1].lower() in MP4_EXTS:
-        # MP4 não aceita SRT/ASS cru, PGS, fontes anexadas nem faixas de dados: mantém só legendas de texto, como mov_text
-        for i in text_subs(args.input):
-            mux += ["-map", f"0:s:{i}"]
-        mux += ["-c", "copy", "-c:s", "mov_text", "-movflags", "+faststart"]
+           "-map", "0:v:0" if args.web else "0:v?"]
+    if args.web:
+        # só o vídeo e a faixa processada; as legendas vão para arquivos .srt (export_subs)
+        mux += ["-map", "1:a:0", "-c", "copy", "-movflags", "+faststart", "-map_metadata", "0", "-map_chapters", "-1", out]
     else:
-        mux += ["-map", "0:s?", "-map", "0:t?", "-map", "0:d?", "-c", "copy"]
-    mux += ["-map_metadata", "0", "-map_chapters", "0", out]
+        for i in range(len(audio)):
+            mux += ["-map", f"1:a:{tracks.index(i)}" if i in tracks else f"0:a:{i}"]
+        if os.path.splitext(out)[1].lower() in MP4_EXTS:
+            # MP4 não aceita SRT/ASS cru, PGS, fontes anexadas nem faixas de dados: mantém só legendas de texto, como mov_text
+            for i in text_subs(args.input):
+                mux += ["-map", f"0:s:{i}"]
+            mux += ["-c", "copy", "-c:s", "mov_text", "-movflags", "+faststart"]
+        else:
+            mux += ["-map", "0:s?", "-map", "0:t?", "-map", "0:d?", "-c", "copy"]
+        mux += ["-map_metadata", "0", "-map_chapters", "0", out]
 
     print(f"\nFiltro: {flt}")
     try:
@@ -263,12 +289,14 @@ def main():
             os.remove(tmp)
     if rc != 0:
         return rc
-    bad = check_audio(out, tracks, dur)
+    bad = check_audio(out, [0] if args.web else tracks, dur)
     if bad:
         print("ERRO: o áudio da(s) faixa(s) " + ", ".join(f"#{n + 1}" for n in bad) + " ficou incompleto no arquivo gerado.")
         print(f"      Não use '{out}'. O original não foi alterado.")
         return 1
     print(f"Pronto: {os.path.abspath(out)} ({os.path.getsize(out) / 1048576:,.0f} MB)")
+    if args.web:
+        export_subs(args.input, os.path.splitext(out)[0])
     return 0
 
 

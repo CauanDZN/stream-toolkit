@@ -2,6 +2,11 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/); versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
+## [1.2.0] - 2026-10-09
+
+### Adicionado
+- `boost_audio.py --web`: MP4 compatível com players de navegador (Google Drive, Rave): uma faixa de áudio em estéreo (5.1 mixado com as falas em destaque), sem legendas embutidas (exportadas como `.srt`) e com `faststart`.
+
 ## [1.1.0] - 2026-10-09
 
 ### Adicionado
